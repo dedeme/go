@@ -11,13 +11,15 @@ From command line use:
 For example:
   jstemplate "src/main.js"
 
-jsi18n Working
+Working with jstemplate
 
-Modify a js file changing template to code.
+Modify a js file changing template to javascript code.
 
 If a fail happens the js file will not be modified.
 
 Templates
+
+Valid templates is:
 
   <<<class
   field1:type
@@ -26,11 +28,8 @@ Templates
   ...
   >>>
 
-It will be replaced by (note that the field which starts with '@' is codified
-as a read/write one.)
-
-  RRRR
-
+It will be replaced by js class code (note that the field which starts with '@'
+is codified as a read/write one.)
 */
 package main
 

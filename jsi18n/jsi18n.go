@@ -12,7 +12,7 @@ For example:
   jsi18n "en:es_ES" "src:/deme/lib/src"
 Note that different languages and roots are separated by ':'
 
-jsi18n Operations
+Operations with jsi18n
 
 jsi18n do next operations:
 
