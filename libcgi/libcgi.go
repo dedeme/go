@@ -11,188 +11,339 @@ import (
 	"github.com/dedeme/go/libcgi/cryp"
 	"os"
 	"path"
-  "time"
+	"strconv"
+	"strings"
+	"time"
 )
 
-const (
-	kGlobal = "var expiration = persistent ? 2592000 : 900;"
-
-	uDb    = "users.db"
-	uPass  = 0
-	uLevel = 1
-
-	ssDb      = "sessions.db"
-	ssUser    = 0
-	ssLevel   = 1
-	ssTime    = 2
-	ssIncTime = 3
-	ssPageId  = 4
-
-	// Request field to identify page source
-	Page = "page"
-	// (Reserved) Request field to send the page identifier
-	PageId = "pageId"
-	// (Reserved) Request field to send the session identifier and to store it
-	SessionId = "sessionId"
-	// (Reserved) Request field to indicate expiration time
-	Expiration = "expirationTime"
-	// (Reserved) Request field to indicate user name
-	User = "user"
-	// (Reserved) Request field to indicate user password
-	Pass = "pass"
-	// (Reserved) Request field to indicate old user password
-	OldPass = "oldPass"
-	// (Reserved) Response field for errors
-	Error = "error"
-	// (Reserved) Response field for session-page control
-	SessionOk = "sessionOk"
-	// (Reserved) Response field for change-password control
-	ChpassOk = "chpassOk"
-	// (Reserved) Page value to set connection.
-	PageConnection = "_ClientConnection"
-	// (Reserved) Page value for authentication.
-	PageAuthentication = "_ClientAuthentication"
-	// (Reserved) Page value for change-password.
-	PageChpass = "_ClientChpass"
-)
+const Klen = 300
+const tNoExpiration int64 = 2592000 // seconds == 30 days
+const demeKey = "nkXliX8lg2kTuQSS/OoLXCk8eS4Fwmc+N7l6TTNgzM1vdKewO0cjok51vcdl" +
+	"OKVXyPu83xYhX6mDeDyzapxL3dIZuzwyemVw+uCNCZ01WDw82oninzp88Hef" +
+	"bn3pPnSMqEaP2bOdX+8yEe6sGkc3IO3e38+CqSOyDBxHCqfrZT2Sqn6SHWhR" +
+	"KqpJp4K96QqtVjmXwhVcST9l+u1XUPL6K9HQfEEGMGcToMGUrzNQxCzlg2g+" +
+	"Hg55i7iiKbA0ogENhEIFjMG+wmFDNzgjvDnNYOaPTQ7l4C8aaPsEfl3sugiw"
 
 var b64 = base64.StdEncoding
 
+var fkey string
 var Home string
+var key string
+var tExpiration int64
 
-func b64write(file string, tx string) {
-	cgiio.WriteAll(file, cryp.Cryp(kGlobal, tx))
-}
-
-func b64read(file string) string {
-	return cryp.Decryp(kGlobal, cgiio.ReadAll(file))
-}
-
-func readUsers() map[string][]string {
-  fusers := path.Join(Home, ssDb)
-  var r map[string][]string
-	if err := json.Unmarshal([]byte(b64read(fusers)), &r); err != nil {
-		Err(err.Error())
-	}
-  return r
-}
-
-func readSessions() map[string][]interface{} {
-  fsessions := path.Join(Home, ssDb)
-  var r map[string][]interface{}
-	if err := json.Unmarshal([]byte(b64read(fsessions)), &r); err != nil {
-		Err(err.Error())
-	}
-  return r
-}
-
-// Init initializes libcgi
-func Init(home string) {
+// Init initializes libcgi. 'texpiration' is in seconds.
+func Init(home string, texpiration int64) {
+	fkey = cryp.Key(demeKey, len(demeKey))
 	Home = home
+	key = fkey // key must be initialized with 'setKey' before call Ok or Err
+	tExpiration = texpiration
 
-	fusers := path.Join(home, uDb)
-	fsessions := path.Join(home, ssDb)
-
-	if !cgiio.Exists(fusers) {
-		userdb := make(map[string]interface{})
-		userdb["admin"] = []string{
-			"CaZkw7OHNkp618+7zWhasQcHYc/BBWNV+zeyqVPQjwU982S4/d1PwvSWtVPFE4upqI" +
-				"kuvFYlQ9IZnCdI80vN8iid54Xn/3Cwki/SDVYNWFvKXsTIs8Z0Z/v+",
-			"0",
-		}
-		bs, err := json.Marshal(userdb)
-		if err != nil {
-			Err(err.Error())
-		}
-		b64write(fusers, string(bs))
-	}
-	if !cgiio.Exists(fsessions) {
-		sessiondb := make(map[string]interface{})
-		bs, err := json.Marshal(sessiondb)
-		if err != nil {
-			Err(err.Error())
-		}
-		b64write(fsessions, string(bs))
+	if !cgiio.Exists(home) {
+		cgiio.Mkdirs(home)
+		cgiio.WriteAll(path.Join(home, "users.db"), "")
+		cgiio.WriteAll(path.Join(home, "sessions.db"), "")
+		putUser("admin", demeKey, "0")
 	}
 }
 
-// Connect sets pageId and returns true if sessionId is correct.
-func Connect(sessionId, pageId string)bool {
-  sessionsOld := readSessions()
-  now := time.Now().Unix()
-  sessions := make(map[string][]interface{})
-  for k, v := range sessionsOld {
-    if v[ssTime].(int64) > now {
-      sessions[k] = v
-    }
-  }
-
-  data, ok := sessions[sessionId]
-  if !ok {
-    return false
-  }
-
-
-/*
-    var now = Date.now().getTime();
-    var sessions = new Map<String, Dynamic>();
-    It.fromIterator(sessionsOld.keys()).each(function (k) {
-      var v = sessionsOld.get(k);
-      if (v[SS_TIME] > now) {
-        sessions.set(k, v);
-      }
-    });
-
-    var ssData = sessions.get(sessionId);
-    if (ssData == null) {
-      return false;
-    }
-    ssData[SS_PAGE_ID] = pageId;
-    ssData[SS_TIME] = ssData[SS_INC_TIME] + now;
-
-    b64write(fsessions, Json.from(sessions));
-    */
-    return true;
-
+// SetKey sets the key which 'Ok' and 'Err' will use
+func SetKey(k string) {
+	key = k
 }
 
-// ReadRequest reads a request sent in os.Args[1]. This request is a map which
-// have been first 'jsonized' and then codified in B64.
-func ReadRequest() map[string]interface{} {
-	rq, err := b64.DecodeString(os.Args[1])
-	if err != nil {
-		Err(err.Error())
+// If expiration is false tNoExpiration is used
+func addSession(sessionId, pageId, key string, expiration bool) {
+	lapse := tNoExpiration
+	if expiration {
+		lapse = tExpiration
 	}
+	time := time.Now().Unix() + lapse
 
-	var r map[string]interface{}
-	if err := json.Unmarshal(rq, &r); err != nil {
-		Err(err.Error())
-	}
+	f := cgiio.OpenAppend(path.Join(Home, "sessions.db"))
+	cgiio.Write(f,
+		cryp.Cryp(fkey,
+			sessionId+":"+
+				pageId+":"+
+				key+":"+
+				strconv.FormatInt(time, 10)+":"+
+				strconv.FormatInt(lapse, 10))+
+			"\n")
+	f.Close()
+}
 
+// In session.db:
+//    Each line is a record
+//    Each field is a B64 string, separated by ":"
+//    Fields are: sessionId:PageId:key:time:lapse
+// Set 'pageId' to "" for avoiding to change it.
+func readSession(sessionId, pageId string) (rpageId, key string) {
+	path := path.Join(Home, "sessions.db")
+	now := time.Now().Unix()
+	newSs := ""
+	rpageId = ""
+	key = ""
+
+	cgiio.Lines(path, func(l string) {
+		if l == "" {
+			return
+		}
+
+		es := strings.Split(cryp.Decryp(fkey, l), ":")
+		t, err := strconv.ParseInt(es[3], 10, 64)
+		if err != nil {
+			Err(err.Error())
+		}
+		if now < t {
+			if es[0] == sessionId {
+				if pageId != "" {
+					es[1] = pageId
+				}
+				t, err := strconv.ParseInt(es[4], 10, 64)
+				if err != nil {
+					Err(err.Error())
+				}
+				es[3] = strconv.FormatInt(now+t, 10)
+				newSs += cryp.Cryp(
+					fkey,
+					es[0]+":"+es[1]+":"+es[2]+":"+es[3]+":"+es[4]) + "\n"
+				rpageId = es[1]
+				key = es[2]
+			} else {
+				newSs += l + "\n"
+			}
+		}
+	})
+
+	cgiio.WriteAll(path, newSs)
+
+	return
+}
+
+func DelSession(sessionId string) {
+	path := path.Join(Home, "sessions.db")
+	newSs := ""
+	cgiio.Lines(path, func(l string) {
+		if l == "" {
+			return
+		}
+		es := strings.Split(cryp.Decryp(fkey, l), ":")
+		if es[0] != sessionId {
+			newSs += l + "\n"
+		}
+	})
+
+	cgiio.WriteAll(path, newSs)
+
+	return
+}
+
+func readUsers() []string {
+	r := make([]string, 10)
+	cgiio.Lines(path.Join(Home, "users.db"), func(l string) {
+		if l != "" {
+			r = append(r, cryp.Decryp(fkey, l))
+		}
+	})
 	return r
 }
 
-// Err sends an error message to client. The message is an object JSON type:
+func writeUsers(users []string) {
+	f := cgiio.OpenWrite(path.Join(Home, "users.db"))
+	for _, l := range users {
+		cgiio.Write(f, cryp.Cryp(fkey, l))
+	}
+	f.Close()
+}
+
+// Returns user level or "" if checking failed
+func checkUser(user, key string) string {
+	rkey := cryp.Key(key, Klen)
+	for _, l := range readUsers() {
+		es := strings.Split(l, ":")
+		if es[0] == user && es[1] == rkey {
+			return es[2]
+		}
+	}
+	return ""
+}
+
+func changeUserPass(user, key string) bool {
+	rkey := cryp.Key(key, Klen)
+	r := false
+	newUsers := make([]string, 10)
+	for _, l := range readUsers() {
+		es := strings.Split(l, ":")
+		if es[0] == user {
+			r = true
+			newUsers = append(newUsers, es[0]+":"+rkey+":"+es[2])
+		} else {
+			newUsers = append(newUsers, l)
+		}
+	}
+	writeUsers(newUsers)
+	return r
+}
+
+func changeUserLevel(user, level string) bool {
+	r := false
+	newUsers := make([]string, 10)
+	for _, l := range readUsers() {
+		es := strings.Split(l, ":")
+		if es[0] == user {
+			r = true
+			newUsers = append(newUsers, es[0]+":"+es[1]+":"+level)
+		} else {
+			newUsers = append(newUsers, l)
+		}
+	}
+	writeUsers(newUsers)
+	return r
+}
+
+func delUser(user string) bool {
+	r := false
+	newUsers := make([]string, 10)
+	for _, l := range readUsers() {
+		es := strings.Split(l, ":")
+		if es[0] == user {
+			r = true
+		} else {
+			newUsers = append(newUsers, l)
+		}
+	}
+	writeUsers(newUsers)
+	return r
+}
+
+// Removes an adds an user.
+// "0" is the admin level.
+func putUser(user, key, level string) {
+	delUser(user)
+	users := readUsers()
+	users = append(users, user+":"+cryp.Key(key, Klen)+":"+level)
+	writeUsers(users)
+}
+
+// Returns pageId and key. If conection failed both are ""
+func GetPageIdKey(sessionId string) (pageId, key string) {
+	return readSession(sessionId, "")
+}
+
+// Send to client pageId and key. If conection failed both are ""
+func Connect(sessionId string) {
+	rp := make(map[string]interface{})
+	rp["pageId"], rp["key"] = readSession(sessionId, cryp.GenK(Klen))
+	Ok(rp)
+}
+
+// Send to client level, key, pageId and sessionI, If authentication failed
+// every value is "".
+func Authentication(user, key string, expiration bool) {
+	rp := make(map[string]interface{})
+	if level := checkUser(user, key); level != "" {
+		sessionId := cryp.GenK(Klen)
+		pageId := cryp.GenK(Klen)
+		key := cryp.GenK(Klen)
+		addSession(sessionId, pageId, key, expiration)
+		rp["level"] = level
+		rp["key"] = key
+		rp["pageId"] = pageId
+		rp["sessionId"] = sessionId
+	} else {
+		rp["level"] = ""
+		rp["key"] = ""
+		rp["pageId"] = ""
+		rp["sessionId"] = ""
+	}
+	Ok(rp)
+}
+
+// Admin level is "0". Send to client ok
+func AddUser(admin, akey, user, ukey, level string) {
+	rp := make(map[string]interface{})
+	if alevel := checkUser(admin, akey); alevel == "0" {
+		putUser(user, ukey, level)
+		rp["ok"] = true
+	} else {
+		rp["ok"] = false
+	}
+	Ok(rp)
+}
+
+// Admin level is "0". Send to client ok
+func DelUser(admin, akey, user string) {
+	rp := make(map[string]interface{})
+	if alevel := checkUser(admin, akey); alevel == "0" {
+		if delUser(user) {
+			rp["ok"] = true
+		} else {
+			rp["ok"] = false
+		}
+	} else {
+		rp["ok"] = false
+	}
+	Ok(rp)
+}
+
+// Admin level is "0". Send to client ok
+func ChangeLevel(admin, akey, user, level string) {
+	rp := make(map[string]interface{})
+	if alevel := checkUser(admin, akey); alevel == "0" {
+		if changeUserLevel(user, level) {
+			rp["ok"] = true
+		} else {
+			rp["ok"] = false
+		}
+	} else {
+		rp["ok"] = false
+	}
+	Ok(rp)
+}
+
+// Send to clien ok
+func ChangePass(user, key, newKey string) {
+	rp := make(map[string]interface{})
+  rp["ok"] = false
+	if checkUser(user, key) != "" {
+		if changeUserPass(user, newKey) {
+			rp["ok"] = true
+		} else {
+			rp["ok"] = false
+		}
+	}
+	Ok(rp)
+}
+
+// Err sends an error message to client. The message is a JSON object of type:
 //    {error:msg}
 func Err(msg string) {
 	r := make(map[string]interface{})
-	r[Error] = msg
+	r["error"] = msg
 	rp, err := json.Marshal(r)
 	if err == nil {
-		fmt.Print(b64.EncodeToString(rp))
+		fmt.Print(cryp.Cryp(key, string(rp)))
 	} else {
 		fmt.Print("{\"${Error}\" : \"Error in Err\"}")
 	}
-  panic("");
+	os.Exit(0)
+}
+
+// Expired sends a expiration message to client. The message is a JSON object:
+//   {expired:true}
+func Expired() {
+  r := make(map[string]interface{})
+  r["expired"] = true
+  Ok(r);
 }
 
 // Ok sends a response ('rp') to client. It adds a field rp["error"] = "".
 func Ok(rp map[string]interface{}) {
-	rp[Error] = ""
-	st, err := json.Marshal(rp)
+	rp["error"] = ""
+	js, err := json.Marshal(rp)
 	if err == nil {
-		fmt.Print(b64.EncodeToString(st))
+		fmt.Print(cryp.Cryp(key, string(js)))
 	} else {
 		fmt.Print("{\"${error}\" : \"Error in Ok\"}")
 	}
+  os.Exit(0)
 }

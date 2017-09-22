@@ -78,8 +78,8 @@ should write only after "=".
 Use of File i18n
 
 i18n.js can be used by program following next process:
-  1. Set variable 'I18n.lang' with one of available dictionaries.
-     For example: I18n.lang = I18n.es
+  1. Calling 'I18n.xx()' with one of available dictionaries.
+     For example: I18n.es()
   2. Use functions '_' and '_args' to write keys
 
 If a key is not in dictionary, '_' and '_args' will yield such key without
@@ -87,7 +87,7 @@ modification; otherwise it will be translated.
 
 Example of use:
   function main() {
-    I18n.lang = I18n.es;
+    I18n.es();
     ...
     console.log(_("Hello"));
     ...
@@ -328,7 +328,7 @@ func extract(ks keys, p string) keys {
 		}
 	} else {
 		// --------------------------------------------------------------------
-		if path.Ext(p) == ".hx" {
+		if path.Ext(p) == ".js" {
 			readFile()
 		}
 	}
@@ -381,7 +381,7 @@ func makeDic(ks keys, lang string) string {
 				trans = trans + "# " + p.file + ": " + strconv.Itoa(p.line) + "\n"
 			}
 			trans = trans + k + " = " + v + "\n\n"
-			dic = dic + "\t\"" + k + "\":  \"" + v + "\",\n"
+			dic = dic + "    \"" + k + "\":  \"" + v + "\",\n"
 			delete(oldD, k)
 		} else {
 			todo = todo + "# TO DO\n"
@@ -409,6 +409,9 @@ func makeDic(ks keys, lang string) string {
 	Write(fdic, trans)
 	fdic.Close()
 
+  if dic == "" {
+    return "";
+  }
 	return dic[:len(dic)-2] + "\n"
 }
 
@@ -441,20 +444,41 @@ func main() {
 
 goog.provide("I18n");
 
+{
+  let lang = {};
+
 `)
 
 	for _, lang := range langs {
 		dic := makeDic(ks, lang)
-		Write(fjstarget, "I18n."+lang+" = {\n"+
+		Write(fjstarget, "  const "+lang+" = {\n"+
 			dic+
-			"};\n\n")
+			"  };\n\n")
 	}
 
 	Write(fjstarget,
-		`I18n.lang = {};
+		`I18n = class {
+  /** @return {void} */
+  static en () {
+    lang = en;
+  }
+
+  /** @return {void} */
+  static es () {
+    lang = es;
+  }
+
+  /**
+   * @private
+   * @return {!Object<string, string>}
+   */
+  static lang () {
+    return lang;
+  }
+}}
 
 function _(key) {
-  let v = I18n.lang[key];
+  let v = I18n.lang()[key];
   if (v !== undefined) {
     return v;
   }
@@ -463,8 +487,8 @@ function _(key) {
 
 function _args(key, ...args) {
   let bf = "";
-  v = _(key);
-  isCode = false;
+  let v = _(key);
+  let isCode = false;
   for (let i = 0; i < v.length; ++i) {
     let ch = v.charAt(i);
     if (isCode) {
@@ -478,7 +502,7 @@ function _args(key, ...args) {
         : ch === "7" ? args[7]
         : ch === "8" ? args[8]
         : ch === "9" ? args[9]
-        : ch === "%" ? args[%]
+        : ch === "%" ? "%"
         : "%" + ch;
       isCode = false;
     } else {

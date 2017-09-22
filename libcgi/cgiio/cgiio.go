@@ -5,15 +5,15 @@
 package cgiio
 
 import (
+	"bufio"
 	"io/ioutil"
+	"log"
 	"os"
 	"os/user"
-  "bufio"
-  "log"
 )
 
 // UserDir returns the name of user dir
-func UserDir() string {
+func HomeDir() string {
 	u, _ := user.Current()
 	return u.HomeDir
 }
@@ -101,12 +101,12 @@ func ReadAllBin(path string) []byte {
 	if err != nil {
 		log.Fatal(err)
 	}
-  return bs
+	return bs
 }
 
 // Read reads a data file completely. (File is open and closed)
 func ReadAll(path string) string {
-  return string(ReadAllBin(path))
+	return string(ReadAllBin(path))
 }
 
 // Lines are read without end of line.
@@ -144,7 +144,7 @@ func OpenAppend(path string) *os.File {
 
 // WriteAll writes data overwriting 'file'. (File is open and closed)
 func WriteAllBin(path string, data []byte) {
-  err := ioutil.WriteFile(path, data, 0755)
+	err := ioutil.WriteFile(path, data, 0755)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -152,7 +152,7 @@ func WriteAllBin(path string, data []byte) {
 
 // WriteAll writes a text overwriting 'file'. (File is open and closed)
 func WriteAll(path, text string) {
-  WriteAllBin(path, []byte(text))
+	WriteAllBin(path, []byte(text))
 }
 
 // Write  writes a text in 'file'
@@ -162,4 +162,3 @@ func Write(file *os.File, text string) {
 		log.Fatal(err)
 	}
 }
-
