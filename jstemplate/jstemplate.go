@@ -317,7 +317,7 @@ func tFunc(kind, name string, lines []string) string {
 		}
 	}
 
-	if i > 0 {
+	if strings.HasSuffix(js, ", ") {
 		js = js[0 : len(js)-2]
 	}
 	if !withReturn {

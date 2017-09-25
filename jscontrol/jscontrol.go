@@ -40,10 +40,6 @@ func processPath(p string) {
 		}
 	} else if cgiio.Exists(p) &&
 		strings.HasSuffix(p, ".js") {
-		excludedProps, ok = excluded[p]
-		if !ok {
-			excludedProps = make(map[string]struct{})
-		}
 		props = make(map[string]int)
 		processFile(p)
     if len(props) > 0 {

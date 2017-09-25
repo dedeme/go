@@ -32,6 +32,8 @@ var key string
 var tExpiration int64
 
 // Init initializes libcgi. 'texpiration' is in seconds.
+//
+// When application is initialized for the first time, 'home' must no exist.
 func Init(home string, texpiration int64) {
 	fkey = cryp.Key(demeKey, len(demeKey))
 	Home = home

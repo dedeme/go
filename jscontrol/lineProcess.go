@@ -19,11 +19,10 @@ const (
 var status = code
 var line = 0
 var ok = false
-var excludedProps map[string]struct{}
 var props map[string]int
 var charQuote = ""
 
-func processPoint(c string, ix int) int {
+func processPoint(c, rest string, ix int) int {
 	ch := '\n'
 	r := ix
 	for ; r < len([]rune(c)); r++ {
@@ -33,36 +32,37 @@ func processPoint(c string, ix int) int {
 			break
 		}
 	}
+	if r == len([]rune(c)) && strings.HasPrefix(rest, "/**/") {
+		return r
+	}
 	if ch != '(' {
 		prop := strings.TrimSpace(c[ix:r])
-		if _, ok := excludedProps[prop]; !ok {
-			if _, yes := props[prop]; !yes {
-				props[prop] = line
-			}
-			r = ix + 1
+		if _, yes := props[prop]; !yes {
+			props[prop] = line
 		}
+		r = ix + 1
 	}
 	return r
 }
 
-func processCode(c string) {
+func processCode(c, rest string) {
 	length := len(c)
 	ix := strings.Index(c, ".")
 	if ix != -1 {
 		ix++
 		if strings.HasPrefix(c[ix:], "_") ||
 			strings.HasPrefix(c[ix:], "length") {
-			processCode(c[ix+1:])
+			processCode(c[ix+1:], rest)
 		} else if strings.HasPrefix(c[ix:], "..") {
-			processCode(c[ix+2:])
+			processCode(c[ix+2:], rest)
 		} else if strings.HasPrefix(c[ix:], "dedeme.") {
-			processCode(c[ix+8:])
+			processCode(c[ix+8:], rest)
 		} else if unicode.IsDigit([]rune(c)[ix]) {
-			processCode(c[ix+1:])
+			processCode(c[ix+1:], rest)
 		} else {
-			ix2 := processPoint(c, ix)
+			ix2 := processPoint(c, rest, ix)
 			if ix2 < length {
-				processCode(c[ix2+1:])
+				processCode(c[ix2+1:], rest)
 			}
 		}
 	}
@@ -118,13 +118,12 @@ func processLine(l string) {
 				iQuote = iQuote3
 			}
 		}
-    charQuote = "\""
-    if iQuote == iQuote2 {
-      charQuote = "'"
-    } else if iQuote == iQuote3 {
-      charQuote = "`"
-    }
-
+		charQuote = "\""
+		if iQuote == iQuote2 {
+			charQuote = "'"
+		} else if iQuote == iQuote3 {
+			charQuote = "`"
+		}
 
 		sel := 0
 		if iLong == -1 {
@@ -154,19 +153,19 @@ func processLine(l string) {
 
 		switch sel {
 		case 1:
-			processCode(l[:iLong])
+			processCode(l[:iLong], l[iLong:])
 			line--
 			status = long
 			processLine(l[iLong+2:])
 		case 2:
-			processCode(l[:iShort])
+			processCode(l[:iShort], l[iShort:])
 		case 3:
-			processCode(l[:iQuote])
+			processCode(l[:iQuote], l[iQuote:])
 			line--
 			status = quote
 			processLine(l[iQuote+1:])
 		default:
-			processCode(l)
+			processCode(l, "")
 		}
 	}
 
