@@ -218,12 +218,11 @@ func tClass(name string, lines []string) string {
 	}
 	r += "   */\n"
 
-	r += "  constructor (\n" +
-		"    " + fields[0].id
+	r += "  constructor (" + fields[0].id
 	for i := 1; i < len(fields); i++ {
-		r += ", \n    " + fields[i].id
+		r += ", " + fields[i].id
 	}
-	r += "\n  ) {\n"
+	r += ") {\n"
 
 	for _, f := range fields {
 		r += "    /** @private */\n    this._" + f.id + " = " + f.id + ";\n"
@@ -294,9 +293,9 @@ func tFunc(kind, name string, lines []string) string {
 		ix := strings.Index(l, ":")
 		if ix == -1 {
 			cm += "   * @return {" + l + "}\n"
-      i++;
+			i++
 			withReturn = true
-      break;
+			break
 		}
 		id := strings.TrimSpace(l[:ix])
 		tp := strings.TrimSpace(l[ix+1:])
@@ -374,7 +373,10 @@ func tVars(kind string, lines []string) string {
 				r += "  /** @const {" + tp + "} */\n" +
 					"  const " + id + " = " + val + ";\n"
 			} else {
-				r += "    /** @type {" + tp + "} */\n" +
+				r += "    /**\n" +
+					"     * @private\n" +
+					"     * @type {" + tp + "}\n" +
+					"     */\n" +
 					"    this._" + id + " = " + val + ";\n"
 			}
 		}

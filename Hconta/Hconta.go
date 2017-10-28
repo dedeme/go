@@ -82,9 +82,9 @@ func main() {
 				rp["conf"] = ""
 			}
 			libcgi.Ok(rp)
-		case "getActions":
+		case "getDb":
 			year := data["year"].(string)
-			actionsPath := path.Join(libcgi.Home, "data", "ac"+year+".db")
+			actionsPath := path.Join(libcgi.Home, "data", year+".db")
 			rp := make(map[string]interface{})
 			if cgiio.Exists(actionsPath) {
 				rp["actions"] = cgiio.ReadAll(actionsPath)
@@ -98,10 +98,10 @@ func main() {
 			cgiio.WriteAll(confPath, conf)
 			rp := make(map[string]interface{})
 			libcgi.Ok(rp)
-		case "setActions":
+		case "setDb":
 			year := data["year"].(string)
-			actions := data["actions"].(string)
-			actionsPath := path.Join(libcgi.Home, "data", "ac"+year+".db")
+			actions := data["db"].(string)
+			actionsPath := path.Join(libcgi.Home, "data", year+".db")
 			cgiio.WriteAll(actionsPath, actions)
 			rp := make(map[string]interface{})
 			libcgi.Ok(rp)

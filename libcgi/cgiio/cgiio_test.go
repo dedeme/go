@@ -25,7 +25,7 @@ func TestCgiio(t *testing.T) {
 	ftmp.Close()
 
 	ftmp = OpenAppend(tmp)
-	Write(ftmp, "\nY un añadido")
+	WriteBin(ftmp, []byte("\nY un añadido"))
 	ftmp.Close()
 
 	tx := ReadAll(tmp)
@@ -54,6 +54,17 @@ func TestCgiio(t *testing.T) {
 	if tx != strings.TrimSpace(tx2) {
 		t.Fatal("LineReader gives:\n" + tx2)
 	}
+
+  Zip(dir, filepath.Join(dir, "dir.zip"))
+  Unzip(filepath.Join(dir, "dir.zip"), dir)
+
+  zipDir := filepath.Join(dir, "dmGoLib")
+  if (!Exists(zipDir)) {
+    t.Fatal("Decompressed directory 'dmGoLib' does not exist")
+  }
+  if (len(List(zipDir)) != 4) {
+    t.Fatal("Number of files in decompressed directory 'dmGoLib' is not 4")
+  }
 
 	Remove(dir)
 }

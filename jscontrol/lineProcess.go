@@ -55,8 +55,6 @@ func processCode(c, rest string) {
 			processCode(c[ix+1:], rest)
 		} else if strings.HasPrefix(c[ix:], "..") {
 			processCode(c[ix+2:], rest)
-		} else if strings.HasPrefix(c[ix:], "dedeme.") {
-			processCode(c[ix+8:], rest)
 		} else if unicode.IsDigit([]rune(c)[ix]) {
 			processCode(c[ix+1:], rest)
 		} else {
