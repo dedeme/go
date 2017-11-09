@@ -62,7 +62,7 @@ func filterBackups() {
   d1:= fmt.Sprintf("%d%02d%02d", t1.Year(), t1.Month(), t1.Day())
   fs := backups();
   sort.Strings(fs);
-  previous := ""
+  previous := "        "
   for _, f := range fs {
     if f < d2 {
       if previous[0:4] == f[0:4] {
