@@ -78,6 +78,7 @@ func addSession(sessionId, pageId, key string, expiration bool) {
 //    Each field is a B64 string, separated by ":"
 //    Fields are: sessionId:PageId:key:time:lapse
 // Set 'pageId' to "" for avoiding to change it.
+// If sessionId is expired key returns "!" + key
 func readSession(sessionId, pageId string) (rpageId, key string) {
 	path := path.Join(Home, "sessions.db")
 	now := time.Now().Unix()
@@ -113,6 +114,10 @@ func readSession(sessionId, pageId string) (rpageId, key string) {
 			} else {
 				newSs += l + "\n"
 			}
+		} else {
+			if es[0] == sessionId {
+				key = "!" + es[2]
+			}
 		}
 	})
 
@@ -140,7 +145,7 @@ func DelSession(sessionId string) {
 }
 
 func readUsers() []string {
-	r := make([]string, 10)
+	r := make([]string, 0)
 	cgiio.Lines(path.Join(Home, "users.db"), func(l string) {
 		if l != "" {
 			r = append(r, cryp.Decryp(fkey, l))
@@ -152,7 +157,7 @@ func readUsers() []string {
 func writeUsers(users []string) {
 	f := cgiio.OpenWrite(path.Join(Home, "users.db"))
 	for _, l := range users {
-		cgiio.Write(f, cryp.Cryp(fkey, l))
+		cgiio.Write(f, cryp.Cryp(fkey, l)+"\n")
 	}
 	f.Close()
 }
@@ -172,7 +177,7 @@ func checkUser(user, key string) string {
 func changeUserPass(user, key string) bool {
 	rkey := cryp.Key(key, Klen)
 	r := false
-	newUsers := make([]string, 10)
+	newUsers := make([]string, 0)
 	for _, l := range readUsers() {
 		es := strings.Split(l, ":")
 		if es[0] == user {
@@ -188,7 +193,7 @@ func changeUserPass(user, key string) bool {
 
 func changeUserLevel(user, level string) bool {
 	r := false
-	newUsers := make([]string, 10)
+	newUsers := make([]string, 0)
 	for _, l := range readUsers() {
 		es := strings.Split(l, ":")
 		if es[0] == user {
@@ -204,7 +209,7 @@ func changeUserLevel(user, level string) bool {
 
 func delUser(user string) bool {
 	r := false
-	newUsers := make([]string, 10)
+	newUsers := make([]string, 0)
 	for _, l := range readUsers() {
 		es := strings.Split(l, ":")
 		if es[0] == user {
@@ -242,6 +247,7 @@ func Connect(sessionId string) {
 // every value is "".
 func Authentication(user, key string, expiration bool) {
 	rp := make(map[string]interface{})
+
 	if level := checkUser(user, key); level != "" {
 		sessionId := cryp.GenK(Klen)
 		pageId := cryp.GenK(Klen)
@@ -305,7 +311,7 @@ func ChangeLevel(admin, akey, user, level string) {
 // Send to clien ok
 func ChangePass(user, key, newKey string) {
 	rp := make(map[string]interface{})
-  rp["ok"] = false
+	rp["ok"] = false
 	if checkUser(user, key) != "" {
 		if changeUserPass(user, newKey) {
 			rp["ok"] = true
@@ -333,9 +339,9 @@ func Err(msg string) {
 // Expired sends a expiration message to client. The message is a JSON object:
 //   {expired:true}
 func Expired() {
-  r := make(map[string]interface{})
-  r["expired"] = true
-  Ok(r);
+	r := make(map[string]interface{})
+	r["expired"] = true
+	Ok(r)
 }
 
 // Ok sends a response ('rp') to client. It adds a field rp["error"] = "".
@@ -347,5 +353,5 @@ func Ok(rp map[string]interface{}) {
 	} else {
 		fmt.Print("{\"${error}\" : \"Error in Ok\"}")
 	}
-  os.Exit(0)
+	os.Exit(0)
 }

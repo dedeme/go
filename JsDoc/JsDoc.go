@@ -59,9 +59,10 @@ func main() {
 		sessionId := rq[:ix]
 		pageId, key := libcgi.GetPageIdKey(sessionId)
 
-    if key == "" {
-      libcgi.Expired()
-    }
+		if key[0] == '!' {
+      libcgi.SetKey(key[1:])
+			libcgi.Expired()
+		}
 
 		libcgi.SetKey(key)
 		jdata := cryp.Decryp(key, rq[ix+1:])

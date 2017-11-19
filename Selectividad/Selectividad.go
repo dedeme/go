@@ -11,39 +11,34 @@ import (
 	"github.com/dedeme/go/libcgi/cgiio"
 	"github.com/dedeme/go/libcgi/cryp"
 	"os"
+	"os/exec"
 	"path"
 	"strings"
 	"time"
-  "sort"
 )
 
 const (
-	appName           = "Hconta"
-	dataVersion       = "201709"
+	appName           = "Selectividad"
+	dataVersion       = "201711"
 	cgiPath           = "/deme/wwwcgi/dmcgi"
 	expiration  int64 = 1800 // 1/2 hour
+	alumnoKey         = "2sEQe0d0+j34RFDfl7hlF0jlZMFOs8zIyP7EwbU751e7Up2ZQV93uOyYclCt" +
+		"uYQri9Ck4l5KlvBVR+HcQVB8pkzb3x8/hLdkwkotP2MhzyjhPlrpyw2U7wGW" +
+		"pBIqA77QHkYRqfjt5xOjqss1hHZNMQHsy3MPwylrXx0mHJCIovSVc7DL/U+q" +
+		"4aq2JHHa7PjzyDanUpJoR5M/CMIl6qprKr3pe9q6CR0QWbIzlpOer7igIHVd" +
+		"j/P8zEs+C3jwwCLN/n6Y0Ax2SDndrQpFvyCGjAeQHX95MoMAcLKkENHDbtcT"
 )
 
-func hcontaInit() {
+func selectividadInit() {
 	dir := path.Join(libcgi.Home, "data")
 
 	if !cgiio.Exists(dir) {
 		cgiio.Mkdir(dir)
 		cgiio.WriteAll(path.Join(dir, "version.txt"),
-			"Hconta\nData version: "+dataVersion+"\n")
+			"Selectividad\nData version: "+dataVersion+"\n")
 		cgiio.Mkdir(path.Join(libcgi.Home, "tmp"))
-		cgiio.Mkdir(path.Join(libcgi.Home, "backups"))
 		cgiio.Mkdir(path.Join(libcgi.Home, "trash"))
 	}
-}
-
-func backups() []string {
-	fs := cgiio.List(path.Join(libcgi.Home, "backups"))
-	r := make([]string, len(fs))
-	for i, f := range fs {
-		r[i] = f.Name()
-	}
-	return r
 }
 
 func trash() []string {
@@ -53,28 +48,6 @@ func trash() []string {
 		r[i] = f.Name()
 	}
 	return r
-}
-
-func filterBackups() {
-  t0 := time.Now()
-  d2 := fmt.Sprintf("%d%02d%02d", t0.Year() - 1, t0.Month(), t0.Day())
-  t1 := t0.AddDate(0, 0, -7)
-  d1:= fmt.Sprintf("%d%02d%02d", t1.Year(), t1.Month(), t1.Day())
-  fs := backups();
-  sort.Strings(fs);
-  previous := "        "
-  for _, f := range fs {
-    if f < d2 {
-      if previous[0:4] == f[0:4] {
-        cgiio.Remove(path.Join(libcgi.Home, "backups", previous))
-      }
-    } else if (f < d1) {
-      if previous[0:6] == f[0:6] {
-        cgiio.Remove(path.Join(libcgi.Home, "backups", previous))
-      }
-    }
-    previous = f
-  }
 }
 
 func clearTmp() {
@@ -110,7 +83,7 @@ func unzip() {
 
 	version := path.Join(libcgi.Home, "tmp", "data", "version.txt")
 	if !cgiio.Exists(version) ||
-		!strings.HasPrefix(cgiio.ReadAll(version), "Hconta") {
+		!strings.HasPrefix(cgiio.ReadAll(version), "Selectividad") {
 		clearTmp()
 		rp := make(map[string]interface{})
 		rp["fail"] = "restore:version"
@@ -127,7 +100,7 @@ func main() {
 	}()
 
 	libcgi.Init(path.Join(cgiPath, appName), expiration)
-	hcontaInit()
+	selectividadInit()
 
 	rq := os.Args[1]
 	ix := strings.Index(rq, ":")
@@ -164,45 +137,36 @@ func main() {
 		}
 		r := data["rq"].(string)
 		switch r {
-		case "getConf":
-			confPath := path.Join(libcgi.Home, "data", "conf.db")
-			rp := make(map[string]interface{})
-			if cgiio.Exists(confPath) {
-				rp["conf"] = cgiio.ReadAll(confPath)
-			} else {
-				rp["conf"] = ""
-			}
-			libcgi.Ok(rp)
 		case "getDb":
-			year := data["year"].(string)
-			dbPath := path.Join(libcgi.Home, "data", year+".db")
+			dbPath := path.Join(libcgi.Home, "data", "data.db")
 			rp := make(map[string]interface{})
 			if cgiio.Exists(dbPath) {
 				rp["db"] = cgiio.ReadAll(dbPath)
 			} else {
-				rp["db"] = ""
+				rp["db"] = "{}"
 			}
-			rp["backups"] = backups()
 			rp["trash"] = trash()
 			libcgi.Ok(rp)
-		case "setConf":
-			conf := data["conf"].(string)
-			confPath := path.Join(libcgi.Home, "data", "conf.db")
-			cgiio.WriteAll(confPath, conf)
+		case "setDb":
+			db := data["db"].(string)
+			dbPath := path.Join(libcgi.Home, "data", "data.db")
+			cgiio.WriteAll(dbPath, db)
 			rp := make(map[string]interface{})
 			libcgi.Ok(rp)
-		case "setDb":
-			year := data["year"].(string)
-			actions := data["db"].(string)
-			actionsPath := path.Join(libcgi.Home, "data", year+".db")
-			cgiio.WriteAll(actionsPath, actions)
+		case "printExercise":
+			clearTmp()
+			dir := path.Join(libcgi.Home, "tmp")
+			fhtml := path.Join(dir, "exercise.html")
+			fpdf := path.Join(dir, "exercise.pdf")
+			cgiio.WriteAll(fhtml, data["tx"].(string))
+			cmd := exec.Command("/home/deme/bin/pdfPrinter", "-s", fhtml, "-t", fpdf)
+			err := cmd.Run()
+			if err != nil {
+				libcgi.Err(err.Error())
+			}
 			rp := make(map[string]interface{})
 			libcgi.Ok(rp)
 		case "logout":
-			cgiio.Zip(
-				path.Join(libcgi.Home, "data"),
-				path.Join(libcgi.Home, "backups", mkDate()))
-      filterBackups()
 			libcgi.DelSession(sessionId)
 			rp := make(map[string]interface{})
 			libcgi.Ok(rp)
@@ -213,7 +177,7 @@ func main() {
 				data["newPass"].(string))
 		case "backup":
 			clearTmp()
-			name := "HcontaBackup" + mkDate() + ".zip"
+			name := "SelectividadBackup" + mkDate() + ".zip"
 			cgiio.Zip(
 				path.Join(libcgi.Home, "data"),
 				path.Join(libcgi.Home, "tmp", name))
@@ -248,11 +212,11 @@ func main() {
 			rp["fail"] = ""
 			libcgi.Ok(rp)
 		case "autorestore":
-      toTrash()
-      cgiio.Remove(path.Join(libcgi.Home, "data"))
-      cgiio.Unzip(
-        path.Join(libcgi.Home, "backups", data["file"].(string)),
-        path.Join(libcgi.Home))
+			toTrash()
+			cgiio.Remove(path.Join(libcgi.Home, "data"))
+			cgiio.Unzip(
+				path.Join(libcgi.Home, "backups", data["file"].(string)),
+				path.Join(libcgi.Home))
 			rp := make(map[string]interface{})
 			libcgi.Ok(rp)
 		case "clearTrash":
@@ -261,11 +225,11 @@ func main() {
 			rp := make(map[string]interface{})
 			libcgi.Ok(rp)
 		case "restoreTrash":
-      toTrash()
-      cgiio.Remove(path.Join(libcgi.Home, "data"))
-      cgiio.Unzip(
-        path.Join(libcgi.Home, "trash", data["file"].(string)),
-        path.Join(libcgi.Home))
+			toTrash()
+			cgiio.Remove(path.Join(libcgi.Home, "data"))
+			cgiio.Unzip(
+				path.Join(libcgi.Home, "trash", data["file"].(string)),
+				path.Join(libcgi.Home))
 			rp := make(map[string]interface{})
 			libcgi.Ok(rp)
 		default:
