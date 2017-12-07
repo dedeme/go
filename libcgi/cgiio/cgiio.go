@@ -108,7 +108,7 @@ func ReadAllBin(path string) []byte {
 	return bs
 }
 
-// Read reads a data file completely. (File is open and closed)
+// ReadAll reads a data file completely. (File is open and closed)
 func ReadAll(path string) string {
 	return string(ReadAllBin(path))
 }

@@ -11,26 +11,27 @@ import (
 	"github.com/dedeme/go/libcgi/cgiio"
 	"github.com/dedeme/go/libcgi/cryp"
 	"os"
-	"os/exec"
 	"path"
 	"strings"
 	"time"
+  "net/http"
+  "io/ioutil"
 )
 
 const (
-	appName           = "Selectividad"
+	appName           = "BolsaData"
 	dataVersion       = "201711"
 	cgiPath           = "/deme/wwwcgi/dmcgi"
 	expiration  int64 = 1800 // 1/2 hour
 )
 
-func selectividadInit() {
+func bolsaDataInit() {
 	dir := path.Join(libcgi.Home, "data")
 
 	if !cgiio.Exists(dir) {
 		cgiio.Mkdir(dir)
 		cgiio.WriteAll(path.Join(dir, "version.txt"),
-			"Selectividad\nData version: "+dataVersion+"\n")
+			appName+"\nData version: "+dataVersion+"\n")
 		cgiio.Mkdir(path.Join(libcgi.Home, "tmp"))
 		cgiio.Mkdir(path.Join(libcgi.Home, "trash"))
 	}
@@ -78,7 +79,7 @@ func unzip() {
 
 	version := path.Join(libcgi.Home, "tmp", "data", "version.txt")
 	if !cgiio.Exists(version) ||
-		!strings.HasPrefix(cgiio.ReadAll(version), "Selectividad") {
+		!strings.HasPrefix(cgiio.ReadAll(version), appName) {
 		clearTmp()
 		rp := make(map[string]interface{})
 		rp["fail"] = "restore:version"
@@ -95,7 +96,7 @@ func main() {
 	}()
 
 	libcgi.Init(path.Join(cgiPath, appName), expiration)
-	selectividadInit()
+	bolsaDataInit()
 
 	rq := os.Args[1]
 	ix := strings.Index(rq, ":")
@@ -115,7 +116,7 @@ func main() {
 		pageId, key := libcgi.GetPageIdKey(sessionId)
 
 		if key[0] == '!' {
-      libcgi.SetKey(key[1:])
+			libcgi.SetKey(key[1:])
 			libcgi.Expired()
 		}
 
@@ -148,19 +149,42 @@ func main() {
 			cgiio.WriteAll(dbPath, db)
 			rp := make(map[string]interface{})
 			libcgi.Ok(rp)
-		case "printExercise":
-			clearTmp()
-			dir := path.Join(libcgi.Home, "tmp")
-			fhtml := path.Join(dir, "exercise.html")
-			fpdf := path.Join(dir, "exercise.pdf")
-			cgiio.WriteAll(fhtml, data["tx"].(string))
-			cmd := exec.Command("/home/deme/bin/pdfPrinter", "-s", fhtml, "-t", fpdf)
-			err := cmd.Run()
-			if err != nil {
-				libcgi.Err(err.Error())
+		case "getQuotes":
+			nick := data["nick"].(string)
+			dbPath := path.Join(libcgi.Home, "data", nick + ".db")
+			rp := make(map[string]interface{})
+			if cgiio.Exists(dbPath) {
+				rp["quotes"] = cgiio.ReadAll(dbPath)
+			} else {
+				rp["quotes"] = ""
 			}
+			libcgi.Ok(rp)
+		case "setQuotes":
+			nick := data["nick"].(string)
+      quotes := data["quotes"].(string)
+			dbPath := path.Join(libcgi.Home, "data", nick + ".db")
+			cgiio.WriteAll(dbPath, quotes)
 			rp := make(map[string]interface{})
 			libcgi.Ok(rp)
+		case "getInvertia":
+      rp := make(map[string]interface{})
+      rp["fail"] = ""
+      rp["page"] = ""
+			url := data["url"].(string)
+			resp, err := http.Get(url)
+			if err != nil {
+        rp["fail"] = err.Error();
+				libcgi.Ok(rp)
+			}
+			body, err := ioutil.ReadAll(resp.Body)
+      resp.Body.Close()
+			if err != nil {
+        rp["fail"] = err.Error();
+				libcgi.Ok(rp)
+			} else {
+        rp["page"] = body
+        libcgi.Ok(rp)
+      }
 		case "logout":
 			libcgi.DelSession(sessionId)
 			rp := make(map[string]interface{})
@@ -172,7 +196,7 @@ func main() {
 				data["newPass"].(string))
 		case "backup":
 			clearTmp()
-			name := "SelectividadBackup" + mkDate() + ".zip"
+			name := "BolsaDataBackup" + mkDate() + ".zip"
 			cgiio.Zip(
 				path.Join(libcgi.Home, "data"),
 				path.Join(libcgi.Home, "tmp", name))
